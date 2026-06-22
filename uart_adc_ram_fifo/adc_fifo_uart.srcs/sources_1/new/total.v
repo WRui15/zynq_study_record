@@ -22,12 +22,11 @@ module total(
     reg [31:0] uart_data_shift;
     wire [31:0] uart_frame_next;
 
-    reg [7:0] sample_all_cnt;
     reg [8:0] sample_target;
     reg [8:0] sample_cnt;
     reg [8:0] stored_sample_count;
     reg       sampling;
-    reg       sample_all_done;
+    reg       sample_adc_start;
 
     wire [15:0] adc_data;
     wire        adc_change_done;
@@ -44,7 +43,7 @@ module total(
     wire key_p_flag;
     wire key_r_flag;
 
-    reg [1:0]  ram_rd_state;
+    reg [2:0]  ram_rd_state;
     reg [8:0]  ram_rd_cnt;
     reg [15:0] fifo_din;
     reg        fifo_wr_flag;
@@ -66,10 +65,11 @@ module total(
     wire      uart_tx_busy;
     wire      uart_tx_done;
 
-    localparam RD_IDLE  = 2'd0;
-    localparam RD_REQ   = 2'd1;
-    localparam RD_WAIT  = 2'd2;
-    localparam RD_WRITE = 2'd3;
+    localparam RD_IDLE  = 3'd0;
+    localparam RD_REQ   = 3'd1;
+    localparam RD_WAIT1 = 3'd2;
+    localparam RD_WAIT2 = 3'd3;
+    localparam RD_WRITE = 3'd4;
 
     localparam TX_IDLE      = 3'd0;
     localparam TX_RD_FIFO   = 3'd1;
@@ -121,29 +121,27 @@ module total(
 
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            sample_all_cnt     <= 8'd0;
             sample_target      <= 9'd0;
             sample_cnt         <= 9'd0;
             stored_sample_count <= 9'd0;
             sampling           <= 1'b0;
-            sample_all_done    <= 1'b0;
+            sample_adc_start    <= 1'b0;
         end else begin
-            sample_all_done <= 1'b0;
+            sample_adc_start <= 1'b0;
 
             if (uart_cmd_done) begin
-                sample_all_cnt      <= cmd_sample_count;
                 sample_target       <= (cmd_sample_count == 8'd0) ? 9'd256 : {1'b0, cmd_sample_count};
                 sample_cnt          <= 9'd0;
                 stored_sample_count <= 9'd0;
                 sampling            <= 1'b1;
-                sample_all_done     <= 1'b1;
+                sample_adc_start    <= 1'b1;
             end else if (adc_change_done && sampling) begin
                 if ((sample_cnt + 1'b1) >= sample_target) begin
                     sampling            <= 1'b0;
                     stored_sample_count <= sample_cnt + 1'b1;
                 end else begin
                     sample_cnt      <= sample_cnt + 1'b1;
-                    sample_all_done <= 1'b1;
+                    sample_adc_start <= 1'b1;
                 end
             end
         end
@@ -153,7 +151,7 @@ module total(
         .clk         (clk),
         .rst_n       (rst_n),
         .key         (key0),
-        .start       (sample_all_done),
+        .start       (sample_adc_start),
         .adc_dout    (adc_dout),
         .adc_cs      (adc_cs),
         .adc_sclk    (adc_sclk),
@@ -208,15 +206,21 @@ module total(
                     if (!full && !wr_rst_busy) begin
                         enb          <= 1'b1;
                         addrb        <= ram_rd_cnt[7:0];
-                        ram_rd_state <= RD_WAIT;
+                        ram_rd_state <= RD_WAIT1;
                     end
                 end
 
-                RD_WAIT: begin
+                RD_WAIT1: begin
+                    enb          <= 1'b1;
+                    ram_rd_state <= RD_WAIT2;
+                end
+
+                RD_WAIT2: begin
+                    enb          <= 1'b1;
                     ram_rd_state <= RD_WRITE;
                 end
 
-                RD_WRITE: begin
+                RD_WRITE: begin   
                     if (!full && !wr_rst_busy) begin
                         fifo_din     <= doutb;
                         fifo_wr_flag <= 1'b1;
