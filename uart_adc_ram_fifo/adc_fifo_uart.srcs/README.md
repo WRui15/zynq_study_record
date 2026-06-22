@@ -22,3 +22,7 @@
     框图：![alt text](image-2.png)
     描述：当adc_change_done以及sampling有效时 拉高wea、ena信号 将adc_data写入ram中 adc采集完成信号adc_change_done有效 输入给ram 最终得到总体存储数量stored_sample_count 按下按键key1之后 输出数据给fifo模块 输入是16位 输出也是16位 
 
+模块4：fifo模块
+    作用：保证数据的顺序无错误 输出给串口 输入16位 输出8位 先输出高位后输出低位
+    框图：![alt text](image-3.png)
+    描述：按下按键key1之后 使用状态机保证按照顺序将数据从ram输入给fifo以及保证时序的一致性 读取ram内部所有信息 输出模块给串口 8位输出模式 先传输高位后传输低位  

@@ -48,7 +48,7 @@ module total(
     reg [15:0] fifo_din;
     reg        fifo_wr_flag;
 
-    wire [7:0] dout;
+    wire [7:0] fifo_dout;
     wire       full;
     wire       almost_full;
     wire       empty;
@@ -73,9 +73,8 @@ module total(
 
     localparam TX_IDLE      = 3'd0;
     localparam TX_RD_FIFO   = 3'd1;
-    localparam TX_WAIT_DATA = 3'd2;
-    localparam TX_SEND      = 3'd3;
-    localparam TX_WAIT_DONE = 3'd4;
+    localparam TX_SEND      = 3'd2;
+    localparam TX_WAIT_DONE = 3'd3;
 
     assign ena      = adc_change_done && sampling;
     assign wea      = adc_change_done && sampling;
@@ -248,7 +247,7 @@ module total(
         .din           (fifo_din),
         .wr_en         (fifo_wr_flag),
         .rd_en         (rd_en),
-        .dout          (dout),
+        .dout          (fifo_dout),
         .full          (full),
         .almost_full   (almost_full),
         .empty         (empty),
@@ -278,19 +277,15 @@ module total(
                 TX_RD_FIFO: begin
                     if (!empty && !rd_rst_busy && !uart_tx_busy) begin
                         rd_en    <= 1'b1;
-                        tx_state <= TX_WAIT_DATA;
+                        tx_state <= TX_SEND;
                     end else begin
                         tx_state <= TX_IDLE;
                     end
                 end
 
-                TX_WAIT_DATA: begin
-                    tx_state <= TX_SEND;
-                end
-
                 TX_SEND: begin
                     if (!uart_tx_busy) begin
-                        uart_tx_data  <= dout;
+                        uart_tx_data  <= fifo_dout;
                         uart_tx_start <= 1'b1;
                         tx_state      <= TX_WAIT_DONE;
                     end
